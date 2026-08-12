@@ -161,6 +161,66 @@ ul.tight li { margin-bottom: 4px; }
 .ramp3 { background: light-dark(#5598e7, #256abf); color: light-dark(#0b0b0b, #ffffff); }
 .ramp4 { background: light-dark(#256abf, #3987e5); color: #ffffff; }
 .ramp5 { background: light-dark(#104281, #86b6ef); color: light-dark(#ffffff, #0b0b0b); }
+
+/* --- lead: title odds -----------------------------------------------------
+   One series (championship probability) over nominal categories (teams), so
+   every bar takes the SAME hue. Colouring bars darker-where-bigger would spend
+   the identity channel re-encoding what bar length already shows. */
+.lead-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+  flex-wrap: wrap; padding: 15px 18px; border-radius: 10px; border: 1px solid var(--ring);
+  background: color-mix(in srgb, var(--blue) 8%, transparent); }
+.heroname { font-size: 25px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; }
+/* Proportional figures on purpose: tabular-nums gives every digit a 0's width,
+   which reads loose at display size. Tabular is for columns, not hero numbers. */
+.hero-fig { font-size: 52px; font-weight: 650; letter-spacing: -0.03em; line-height: 1; }
+.odds-row { display: grid; grid-template-columns: 20px minmax(88px, 1.1fr) 2fr 52px;
+  align-items: center; gap: 10px; padding: 3px 0; border-radius: 5px; }
+.odds-row:hover { background: color-mix(in srgb, var(--grid) 45%, transparent); }
+.onm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+/* square at the baseline, 4px rounded at the data end */
+.obar { height: 14px; background: color-mix(in srgb, var(--grid) 65%, transparent); border-radius: 0 4px 4px 0; }
+.obar > i { display: block; height: 100%; background: var(--blue); border-radius: 0 4px 4px 0; min-width: 2px; }
+.opc { font-variant-numeric: tabular-nums; font-size: 12.5px; font-weight: 650; text-align: right; }
+
+/* --- group stage: 16 team cards, 2 columns x 8 rows ----------------------- */
+.tgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(8, auto); grid-auto-flow: column; gap: 8px 14px; }
+@media (max-width: 720px) { .tgrid { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; } }
+.tcard { border: 1px solid var(--ring); border-radius: 8px; background: var(--surface-1); padding: 9px 11px; }
+.tcard-h { display: flex; align-items: baseline; gap: 8px; }
+.tseed { font-size: 11px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; min-width: 22px; }
+.tnm { font-weight: 650; font-size: 13.5px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trec { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+/* Record histogram. Column POSITION already carries the 5-0 -> 0-5 order and
+   column HEIGHT carries the probability, so every column is the same hue at
+   full strength: dimming the non-modal bars would re-encode height as opacity,
+   and no tint of this blue on this surface clears 3:1 anyway (checked). The
+   modal record is called out in the axis label below, in ink, not by fill. */
+.hist { display: flex; align-items: flex-end; gap: 2px; height: 30px; margin-top: 8px; }
+.hcol { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.hcol > i { display: block; width: 100%; min-height: 2px; border-radius: 2px 2px 0 0;
+  background: var(--blue); }
+.hcol:hover > i { background: light-dark(#104281, #9ec5f4); }
+/* the axis -- without it a column is an unlabelled block */
+.haxis { display: flex; gap: 2px; margin: 3px 0 10px; }
+.haxis span { flex: 1; text-align: center; font-size: 9.5px; line-height: 1.3;
+  color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.haxis span.on { color: var(--ink-1); font-weight: 700; }
+/* Outcome split -- diverging: cool (advance) <- neutral gray -> warm (out).
+   The 2px surface gaps do the separating; never a border around a mark.
+   Dark-mode steps are re-picked, not flipped: #e66767 vs #6f6e6a collapses to
+   dE 3.9 under protanopia, #ea7373 clears it at 9.2. */
+.osplit { display: flex; height: 9px; gap: 2px; }
+.osplit > span { border-radius: 2px; min-width: 0; }
+.seg-adv  { background: light-dark(#2a78d6, #3987e5); }
+.seg-elim { background: light-dark(#898781, #6f6e6a); }
+.seg-out  { background: light-dark(#e34948, #ea7373); }
+.olab { display: flex; gap: 9px; margin-top: 6px; font-size: 11px; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.legend { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin: 0 0 13px;
+  font-size: 12px; color: var(--ink-2); }
+.legend .k { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
 </style>
 </head>
 <body>
@@ -585,7 +645,53 @@ function render() {
   $('#meta').innerHTML = `16 teams · Shanghai, 13–23 Aug 2026 · patches ${PATCHES.map(p => p.name).join(' / ')}
     · data pulled ${gen.toISOString().slice(0, 16).replace('T', ' ')} UTC from OpenDota`;
   const app = $('#app');
-  app.append(rankings(), matchupLab(), heroSection(), bracketSection(), bracketBuilder(), methodology());
+  // titleSection() only parks a container; bracketSection() runs the sim and
+  // fills it, so it has to be built first.
+  app.append(titleSection(), bracketSection(), rankings(), matchupLab(), heroSection(),
+    bracketBuilder(), methodology());
+}
+
+// ---- 0. the one number the page leads with --------------------------------
+let PODIUM;
+function titleSection() {
+  PODIUM = el('div', {}, el('p', { class: 'sub' }, 'simulating…'));
+  return el('section', {}, el('h2', {}, 'Who wins TI 2026?'),
+    el('p', { class: 'sub' }, 'Every team\'s chance of lifting the Aegis, across 20,000 simulated runs of the whole event.'),
+    PODIUM);
+}
+
+function titleOdds(sim) {
+  const ranked = sim.teams.slice().sort((a, b) => b.champ - a.champ);
+  const fav = ranked[0];
+  const box = el('div', {});
+  // Exactly one hero figure per view -- this is it.
+  box.append(el('div', { class: 'lead-hero' },
+    el('div', {},
+      el('div', { class: 'mutt' }, 'Favourite'),
+      el('div', { class: 'heroname' }, fav.t.name),
+      el('div', { class: 'mut' }, `${pct(fav.champ + fav.final)} to reach the grand final · ${pct(fav.main)} to make the Main Event`)),
+    el('div', { style: 'text-align:right' },
+      el('div', { class: 'hero-fig' }, pct(fav.champ)),
+      el('div', { class: 'mutt' }, 'title odds'))));
+
+  // Ranked bars. One series, so no legend box -- the heading names it.
+  const max = fav.champ;
+  const list = el('div', { style: 'margin-top:18px' });
+  ranked.forEach((r, i) => {
+    const bar = el('div', { class: 'obar' });
+    bar.append(el('i', { style: `width:${clamp(r.champ / max, 0, 1) * 100}%` }));
+    const row = el('div', { class: 'odds-row' },
+      el('span', { class: 'mutt', style: 'text-align:right;font-variant-numeric:tabular-nums' }, String(i + 1)),
+      el('span', { class: 'onm', title: r.t.name }, r.t.name),
+      bar,
+      el('span', { class: 'opc' }, pct(r.champ)));
+    hoverable(row, `<strong>${r.t.name}</strong><br>Champion ${pct(r.champ)} · grand final ${pct(r.champ + r.final)}<br>
+      Main Event ${pct(r.main)} · out in the group stage ${pct(r.out)}<br>
+      <em>±${(100 * 1.96 * r.mcErr).toFixed(1)} is Monte-Carlo noise (95%), not model error.</em>`);
+    list.append(row);
+  });
+  box.append(list);
+  return box;
 }
 
 // ---- 1. power rankings
@@ -788,13 +894,85 @@ function matchBox(title, a, b, opts = {}) {
 function swissView(sim) {
   const s = el('div', {},
     el('div', { class: 'stage' }, 'Group stage · Swiss-16 · Aug 13–16 · all Bo3'),
-    el('p', { class: 'sub' }, 'A Swiss stage has no fixed tree — pairings depend on results, so the honest view is the distribution of finishes. Rows are ordered by average seed; the cut lines mark where the field splits.'));
+    el('p', { class: 'sub' }, 'Sixteen teams, one pool, five Bo3 rounds — there is no fixed tree, so each team is a spread of finishes rather than a slot. The shape on each card is the record it ends on; the bar under it is where that record lands them.'));
 
+  // The legend sits once above the grid rather than on every card: with three
+  // classes the reader must never have to match a colour from memory.
+  s.append(el('div', { class: 'legend' },
+    el('span', { class: 'k' }, el('i', { class: 'seg-adv' }), 'Top 3 — straight to the Main Event'),
+    el('span', { class: 'k' }, el('i', { class: 'seg-elim' }), 'Seeds 4–13 — elimination round'),
+    el('span', { class: 'k' }, el('i', { class: 'seg-out' }), 'Seeds 14–16 — eliminated')));
+  s.append(swissGrid(sim));
+  s.append(el('details', {}, el('summary', {}, 'Show the full record table'), recordTable(sim)));
+
+  // elimination round -- fixed pairings off the Swiss seeding
+  s.append(el('div', { class: 'stage' }, 'Elimination round · seeds 4–13 · 5 advance · Bo3'));
+  // five independent Bo3s, so this row wraps rather than scrolls
+  const grid = el('div', { style: 'display:flex;flex-wrap:wrap;gap:14px' });
+  for (let k = 0; k < 5; k++) {
+    grid.append(matchBox(`Seed ${4 + k} vs seed ${13 - k}`, seedCands(sim, 3 + k), seedCands(sim, 12 - k),
+      { grid: 'width:216px' }));
+  }
+  s.append(grid);
+  return s;
+}
+
+// 16 cards, 2 columns x 8 rows, ordered by average seed.
+function swissGrid(sim) {
+  const grid = el('div', { class: 'tgrid' });
+  bySeedOrder(sim).forEach(({ t, i, mean }, pos) => {
+    const r = sim.teams[i], rec = sim.swissRec[i];
+    const maxP = Math.max(...rec);
+    const modal = rec.indexOf(maxP);
+    // seeds 4-13 -- whatever is left once the top 3 and the bottom 3 are taken
+    const elim = clamp(1 - r.swiss3 - r.out, 0, 1);
+
+    // 5-0 on the left down to 0-5 on the right
+    const hist = el('div', { class: 'hist' });
+    const axis = el('div', { class: 'haxis' });
+    for (let w = CFG.swissRounds; w >= 0; w--) {
+      const col = el('div', { class: 'hcol' });
+      col.append(el('i', { style: `height:${Math.max(4, 100 * rec[w] / maxP)}%` }));
+      hist.append(hoverable(col,
+        `<strong>${t.name}</strong> finishes ${w}–${CFG.swissRounds - w}<br>${pct(rec[w])} of runs`));
+      axis.append(el('span', { class: w === modal ? 'on' : '' }, `${w}–${CFG.swissRounds - w}`));
+    }
+
+    const split = el('div', { class: 'osplit' });
+    for (const [cls, p] of [['seg-adv', r.swiss3], ['seg-elim', elim], ['seg-out', r.out]]) {
+      // grow values sum to 100, so they always divide the full width
+      if (p > 0.0005) split.append(el('span', { class: cls, style: `flex:${p * 100} 1 0` }));
+    }
+
+    const card = el('div', { class: 'tcard' },
+      el('div', { class: 'tcard-h' },
+        el('span', { class: 'tseed' }, '#' + (pos + 1)),
+        el('span', { class: 'tnm', title: t.name }, t.name),
+        el('span', { class: 'trec' }, `${modal}–${CFG.swissRounds - modal}`)),
+      hist, axis, split,
+      el('div', { class: 'olab' },
+        el('span', {}, `Top 3 ${pct0(r.swiss3)}`),
+        el('span', {}, `Elim rd ${pct0(elim)}`),
+        el('span', {}, `Out ${pct0(r.out)}`)));
+    hoverable(card, `<strong>${t.name}</strong><br>Average seed ${(mean + 1).toFixed(1)} of 16<br>
+      Most likely record ${modal}–${CFG.swissRounds - modal} (${pct(maxP)} of runs)<br>
+      Mean record ${r.swissWins.toFixed(1)}–${(CFG.swissRounds - r.swissWins).toFixed(1)}<br>
+      Reaches the Main Event ${pct(r.main)}`);
+    grid.append(card);
+  });
+  return grid;
+}
+
+const bySeedOrder = sim => T.map((t, i) => ({ t, i, mean: sim.swissSeed[i].reduce((a, c, k) => a + c * k, 0) }))
+  .sort((a, b) => a.mean - b.mean);
+
+// The table view of the same numbers -- unrounded, and the cut lines drawn.
+function recordTable(sim) {
+  const s = el('div', {});
   // record distribution heatmap -- sequential, one hue, light to dark
   const RAMP = ['ramp0', 'ramp1', 'ramp2', 'ramp3', 'ramp4', 'ramp5'];
   const step = p => Math.min(5, Math.floor(Math.pow(clamp(p / 0.45, 0, 1), 0.6) * 5.999));
-  const bySeed = T.map((t, i) => ({ t, i, mean: sim.swissSeed[i].reduce((a, c, k) => a + c * k, 0) }))
-    .sort((a, b) => a.mean - b.mean);
+  const bySeed = bySeedOrder(sim);
   const NCOL = CFG.swissRounds + 5;
   const cutRow = (cls, label) => el('tr', {}, el('td', { class: 'cutrow ' + cls, colspan: String(NCOL) }, label));
   const tb = el('tbody');
@@ -824,16 +1002,6 @@ function swissView(sim) {
       el('span', { class: 'mutt' }, 'less likely'),
       ...RAMP.map(r => el('span', { class: r, style: 'width:24px;height:10px;border-radius:3px;display:inline-block' })),
       el('span', { class: 'mutt' }, 'more likely')));
-
-  // elimination round -- fixed pairings off the Swiss seeding
-  s.append(el('div', { class: 'stage' }, 'Elimination round · seeds 4–13 · 5 advance · Bo3'));
-  // five independent Bo3s, so this row wraps rather than scrolls
-  const grid = el('div', { style: 'display:flex;flex-wrap:wrap;gap:14px' });
-  for (let k = 0; k < 5; k++) {
-    grid.append(matchBox(`Seed ${4 + k} vs seed ${13 - k}`, seedCands(sim, 3 + k), seedCands(sim, 12 - k),
-      { grid: 'width:216px' }));
-  }
-  s.append(grid);
   return s;
 }
 
@@ -881,7 +1049,9 @@ function bracketSection() {
     out.replaceChildren(el('p', { class: 'sub' }, 'simulating…'));
     setTimeout(() => {
       seed = 12345; sim = runSims();
-      out.replaceChildren(simTable(sim.teams), swissView(sim), mainBracket(sim));
+      PODIUM.replaceChildren(titleOdds(sim));
+      out.replaceChildren(swissView(sim), mainBracket(sim),
+        el('details', {}, el('summary', {}, 'Show the full simulation table'), simTable(sim.teams)));
     }, 20);
   };
   s.append(el('div', { class: 'row' }, el('button', { onclick: run }, 'Re-run simulation')), out);
