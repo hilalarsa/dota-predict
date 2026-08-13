@@ -217,6 +217,40 @@ ul.tight li { margin-bottom: 4px; }
 .seg-out  { background: light-dark(#e34948, #ea7373); }
 .olab { display: flex; gap: 9px; margin-top: 6px; font-size: 11px; color: var(--ink-2);
   font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+/* --- updates: results as played -------------------------------------------
+   A scoreline is a comparison of two names, so the score sits between them and
+   the winner is marked in ink weight rather than colour -- colour in this
+   section is reserved for the direction a forecast moved. */
+.reslist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; }
+@media (max-width: 720px) { .reslist { grid-template-columns: 1fr; } }
+.resrow { display: grid; grid-template-columns: 1fr 46px 1fr; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 6px; border: 1px solid transparent; }
+.resrow:hover { background: color-mix(in srgb, var(--grid) 45%, transparent); }
+.resrow.liveq { border-color: color-mix(in srgb, var(--warning) 55%, transparent); }
+.rnm { font-size: 13px; color: var(--ink-2); text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rnm-b { text-align: left; }
+.rnm.wn { color: var(--ink-1); font-weight: 700; }
+.rsc { text-align: center; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 1px 0; border-radius: 4px; background: var(--grid); color: var(--ink-1); }
+.rsc-live { background: color-mix(in srgb, var(--warning) 30%, transparent); }
+.rtag { font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.rtag.won { background: color-mix(in srgb, var(--blue) 16%, transparent); color: light-dark(#104281, #9ec5f4); }
+.rtag.lost { background: color-mix(in srgb, var(--red) 16%, transparent); color: light-dark(#b32e2d, #f0908f); }
+.rtag.leads, .rtag.trails { background: color-mix(in srgb, var(--warning) 22%, transparent); color: var(--ink-2); }
+/* Diverging bar around a centre line: the axis is "no change", so a gain and a
+   loss of the same size are the same length in opposite directions. */
+.dbar { position: relative; height: 12px; min-width: 96px; background: color-mix(in srgb, var(--grid) 55%, transparent);
+  border-radius: 3px; }
+.dbar::before { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px;
+  width: 1px; background: var(--baseline); }
+.dbar > i { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: 2px; }
+.dbar > i.up { background: light-dark(#2a78d6, #3987e5); }
+.dbar > i.dn { background: light-dark(#e34948, #ea7373); }
+.errnote { font-size: 12px; color: light-dark(#b32e2d, #f0908f); }
+.dup { color: light-dark(#104281, #9ec5f4); font-weight: 650; }
+.ddn { color: light-dark(#b32e2d, #f0908f); font-weight: 650; }
 .legend { display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin: 0 0 13px;
   font-size: 12px; color: var(--ink-2); }
 .legend .k { display: inline-flex; align-items: center; gap: 5px; }
@@ -263,6 +297,56 @@ const CFG = {
   sims: 20000,
   swissRounds: 5,
 };
+
+// ---------------------------------------------------------------------------
+// results as played
+// ---------------------------------------------------------------------------
+// The bundled copy: what the page knows before anyone presses Refresh, and what
+// it falls back to if Liquipedia is unreachable. `sa`/`sb` are maps won in the
+// Bo3 -- a series where neither side has reached 2 is still on stage, and the
+// sim finishes it from the current map score rather than replaying it from 0-0,
+// so a 1-0 lead is worth what a 1-0 lead is worth.
+// Names are this page's names. Everything else a team is called -- its org name
+// and its TI broadcast alias -- is listed here, which is also how a name read
+// off Liquipedia is mapped back onto a team. The first entry is the one shown
+// in brackets next to the team. Valve's sponsor rules and a mid-season rename
+// mean four of the sixteen play under a name that is not their org's.
+const ALIASES = {
+  'TEAM VISION': ['PARIVISION'],
+  'HULIGANI': ['L1GA TEAM'],
+  'BetBoom Team': ['BoomBoys'],
+  '1w Team': ['Iron Wing'],
+};
+const RESULTS = {
+  asOf: '13 Aug 2026, 18:20 CST',
+  source: 'bundled',
+  // one array per Swiss round, oldest first
+  rounds: [[
+    { a: 'Team Falcons', b: 'LGD Gaming', sa: 2, sb: 1 },
+    { a: 'Nigma Galaxy', b: '1w Team', sa: 0, sb: 2 },
+    { a: 'BetBoom Team', b: 'OG', sa: 2, sb: 0 },
+    { a: 'TEAM VISION', b: 'Team Resilience', sa: 2, sb: 1 },
+    { a: 'Team Liquid', b: 'Vici Gaming', sa: 2, sb: 0 },
+    { a: 'Aurora Gaming', b: 'GamerLegion', sa: 2, sb: 0 },
+    { a: 'Team Spirit', b: 'Xtreme Gaming', sa: 2, sb: 0 },
+    { a: 'Team Yandex', b: 'HULIGANI', sa: 2, sb: 0 },
+  ]],
+  // pairings for the round after the last complete one, drawn but not played
+  next: [
+    ['TEAM VISION', 'Team Falcons'], ['BetBoom Team', '1w Team'],
+    ['LGD Gaming', 'Team Resilience'], ['Nigma Galaxy', 'OG'],
+  ],
+};
+
+// Live source. Liquipedia's MediaWiki API sends Access-Control-Allow-Origin: *
+// when asked with origin=*, so the browser can read it with no proxy and no
+// backend -- which is the only reason a static page can do this at all.
+const LIQ = {
+  api: 'https://liquipedia.net/dota2/api.php',
+  page: 'The International/2026/Group Stage',
+  cooldownMs: 30000,       // their API terms ask for gentle polling; one press
+                           // per 30s is far under the published parse limit
+};
 const q = Math.LN10 / 400;
 const $ = s => document.querySelector(s);
 const el = (t, a = {}, ...kids) => {
@@ -279,7 +363,7 @@ const pct0 = x => Math.round(100 * x) + '%';
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
 // ---------------------------------------------------------------------------
-let D, T, POOL, HEROES, HERO_BY_NAME, PATCHES, sim = null;
+let D, T, POOL, HEROES, HERO_BY_NAME, PATCHES, TEAM_IDX, LIVE, sim = null;
 
 fetch('data.json').then(r => {
   if (!r.ok) throw new Error(r.status);
@@ -357,6 +441,121 @@ function build() {
   T.forEach((t, k) => t.rank = k + 1);
 
   POOL = D.match_pool;
+  TEAM_IDX = teamIndex();
+  LIVE = resolveResults(RESULTS);
+}
+
+// Every name that can point at a team -- its own, and its broadcast alias, so
+// "PARIVISION" off Liquipedia and "TEAM VISION" in the bundled copy land on the
+// same row. Lower-cased and stripped: "1w Team" and "1W TEAM" are one team.
+function teamIndex() {
+  const key = s => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+  const idx = new Map(T.map((t, i) => [key(t.name), i]));
+  for (const [name, alts] of Object.entries(ALIASES)) {
+    const i = idx.get(key(name));
+    if (i != null) for (const a of alts) idx.set(key(a), i);
+  }
+  return idx;
+}
+const teamIdx = n => TEAM_IDX.get(String(n).toLowerCase().replace(/\s+/g, ' ').trim());
+
+// Results carry names; the sim needs T-indices. Resolving loudly means a bad
+// name fails here instead of quietly dropping a series out of the round.
+function resolveResults(src) {
+  const rounds = src.rounds.map(rd => rd.map(m => {
+    const i = teamIdx(m.a), j = teamIdx(m.b);
+    if (i == null || j == null) throw new Error(`results name no such team: ${m.a} / ${m.b}`);
+    return { i, j, sa: m.sa, sb: m.sb, done: m.sa === 2 || m.sb === 2 };
+  }));
+  const next = (src.next || []).map(([a, b]) => [teamIdx(a), teamIdx(b)])
+    .filter(([i, j]) => i != null && j != null);
+  return { rounds, next, asOf: src.asOf, source: src.source || 'bundled' };
+}
+
+// --- live results ----------------------------------------------------------
+// Ask Liquipedia to render the group stage page and read the scores back out of
+// the markup. `prop=text` is the rendered HTML, which is far more stable to read
+// than the wikitext: the scores live in classed elements rather than in template
+// arguments that get rearranged whenever an editor tidies the page.
+async function fetchLatest() {
+  const url = `${LIQ.api}?action=parse&page=${encodeURIComponent(LIQ.page)}`
+    + '&prop=text&format=json&formatversion=2&origin=*';
+  const r = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!r.ok) throw new Error(`Liquipedia returned HTTP ${r.status}`);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.info || 'Liquipedia API error');
+  const html = j.parse?.text;
+  if (typeof html !== 'string') throw new Error('unexpected API response shape');
+  return parseGroupStage(html);
+}
+
+// One .brkts-matchlist per Swiss round, in round order. Inside each, a match is
+// [opponent, score, score, opponent] as direct children -- the popup nested in
+// the same element repeats the teams under different classes, which is why the
+// selectors are scoped to direct children rather than searched for anywhere.
+function parseGroupStage(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const lists = doc.querySelectorAll('.brkts-matchlist');
+  if (!lists.length) throw new Error('no matchlists on the page — layout changed?');
+
+  // Liquipedia labels a team twice in the same cell: aria-label carries the org
+  // name ("1w Team") while data-team-name carries what the broadcast calls them
+  // at this event ("Iron Wing"). Either one is enough to identify the team, so
+  // try both rather than betting on which naming the page happens to use.
+  const unknown = new Set();
+  const nameOf = o => [o.getAttribute('aria-label'),
+    o.querySelector('[data-team-name]')?.dataset.teamName,
+    o.querySelector('[data-team-bracketname]')?.dataset.teamBracketname]
+    .filter(Boolean).map(s => s.trim()).filter(s => s && s !== 'Make match page');
+  const resolve = o => {
+    const names = nameOf(o);
+    for (const n of names) { const i = teamIdx(n); if (i != null) return i; }
+    if (names.length) unknown.add(names[0]);
+    return null;
+  };
+
+  const parsed = [...lists].map(ml => {
+    const out = [];
+    for (const m of ml.querySelectorAll('.brkts-matchlist-match')) {
+      const opp = m.querySelectorAll(':scope > .brkts-matchlist-opponent');
+      const sc = m.querySelectorAll(':scope > .brkts-matchlist-score');
+      if (opp.length < 2 || sc.length < 2) continue;
+      const i = resolve(opp[0]), j = resolve(opp[1]);
+      if (i == null || j == null || i === j) continue;   // TBD slot, or a placeholder
+      // an unplayed map shows blank, not 0
+      const n = c => { const v = parseInt(c.textContent.trim(), 10); return Number.isFinite(v) ? v : 0; };
+      const sa = n(sc[0]), sb = n(sc[1]);
+      out.push({ i, j, sa, sb, done: Math.max(sa, sb) >= 2 });
+    }
+    return out;
+  });
+
+  // A round only goes into the sim if it is a complete pairing of all 16 teams.
+  // A half-drawn round would leave teams with no opponent, and locking rounds
+  // out of order would pair teams off records that never happened -- so this
+  // takes the longest run of complete rounds from round 1 and stops there.
+  const half = T.length / 2;
+  const rounds = [];
+  for (const rd of parsed) {
+    const seen = new Set();
+    const complete = rd.length === half
+      && rd.every(m => !seen.has(m.i) && !seen.has(m.j) && (seen.add(m.i), seen.add(m.j), true));
+    if (!complete) break;
+    rounds.push(rd);
+  }
+  // A team this page cannot name is the likeliest reason a round comes up
+  // short, and it is fixable in one line of ALIASES -- so say which name.
+  if (!rounds.length) throw new Error(unknown.size
+    ? `unrecognised team name: ${[...unknown].join(', ')}`
+    : 'no complete round found in the page');
+  // whatever is drawn for the round after those -- shown, not simulated
+  const next = (parsed[rounds.length] || []).map(m => [m.i, m.j]);
+
+  return {
+    rounds, next, source: 'liquipedia',
+    asOf: new Date().toLocaleString(undefined,
+      { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+  };
 }
 
 // --- core probability ------------------------------------------------------
@@ -471,7 +670,12 @@ function gauss() { // Box-Muller
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-function runSims(n = CFG.sims) {
+// `known` (optional) is the rounds already played, oldest first: the real
+// pairings, with finished series forced to their real winner and in-progress
+// ones resolved from the map score they currently stand at. Rounds past the end
+// of it are paired and played the usual way. Passing nothing gives the
+// pre-tournament forecast, so one function produces both sides of before/after.
+function runSims(n = CFG.sims, known = null) {
   const N = T.length;
   const tally = T.map(() => ({ champ: 0, final: 0, top4: 0, main: 0, swiss3: 0, out: 0, swissWins: 0 }));
   const h2hCache = T.map((a) => T.map((b) => a === b ? 0 : h2hAdj(a, b, pGame(a.rating, b.rating, a.sigma, b.sigma))));
@@ -492,10 +696,26 @@ function runSims(n = CFG.sims) {
       const p = clamp(pGame(R[i], R[j]) + h2hCache[i][j], 0.02, 0.98);
       return rnd() < (bo === 5 ? bo5(p) : bo3(p));
     };
+    // Finish a Bo3 that already stands at sa-sb. Maps are drawn one at a time
+    // because "wins from 1-0" is a different number than "wins from 0-0".
+    const winFrom = (i, j, sa, sb) => {
+      const p = clamp(pGame(R[i], R[j]) + h2hCache[i][j], 0.02, 0.98);
+      while (sa < 2 && sb < 2) rnd() < p ? sa++ : sb++;
+      return sa > sb;
+    };
 
     // ---- Swiss
     const rec = T.map((_, i) => ({ i, w: 0, l: 0, opp: [] }));
     for (let r = 0; r < CFG.swissRounds; r++) {
+      const played = known?.[r];
+      if (played) {                        // round already on stage -- replay it
+        for (const m of played) {
+          const A = rec[m.i], B = rec[m.j];
+          A.opp.push(m.j); B.opp.push(m.i);
+          if (winFrom(m.i, m.j, m.sa, m.sb)) { A.w++; B.l++; } else { B.w++; A.l++; }
+        }
+        continue;
+      }
       // random key assigned once — a rnd() comparator is not a uniform shuffle
       rec.forEach(r => r.k = rnd());
       const pool = rec.slice().sort((a, b) => (b.w - a.w) || (a.k - b.k));
@@ -647,8 +867,8 @@ function render() {
   const app = $('#app');
   // titleSection() only parks a container; bracketSection() runs the sim and
   // fills it, so it has to be built first.
-  app.append(titleSection(), bracketSection(), rankings(), matchupLab(), heroSection(),
-    bracketBuilder(), methodology());
+  app.append(titleSection(), updatesSection(), bracketSection(), rankings(), matchupLab(),
+    heroSection(), bracketBuilder(), methodology());
 }
 
 // ---- 0. the one number the page leads with --------------------------------
@@ -691,6 +911,178 @@ function titleOdds(sim) {
     list.append(row);
   });
   box.append(list);
+  return box;
+}
+
+// ---- 0b. what actually happened today, and what it moved -------------------
+let UPDATES, UPD_STATUS, UPD_BTN, lastFetch = 0;
+
+function updatesSection() {
+  UPDATES = el('div', {}, el('p', { class: 'sub' }, 'simulating…'));
+  UPD_STATUS = el('span', { class: 'mutt' });
+  UPD_BTN = el('button', { onclick: refresh }, 'Refresh results');
+  const s = el('section', {}, el('h2', {}, 'Updates'),
+    el('p', { class: 'sub' }, `The Swiss group stage as played. Every other section on this page is the pre-tournament forecast; this one re-runs the same ${CFG.sims.toLocaleString()} simulations with these results locked in, so the two can be read against each other.`),
+    el('div', { class: 'row' }, UPD_BTN, UPD_STATUS),
+    UPDATES);
+  setStatus();
+  return s;
+}
+
+function setStatus(msg, cls) {
+  UPD_STATUS.className = cls || 'mutt';
+  UPD_STATUS.textContent = msg ?? (LIVE.source === 'liquipedia'
+    ? `Live from Liquipedia · ${LIVE.asOf}`
+    : `Bundled with the page · ${LIVE.asOf} · press Refresh for live scores`);
+}
+
+// Pull, then re-simulate. Nothing is replaced until the fetch has succeeded and
+// parsed, so a failed refresh leaves the numbers on screen exactly as they were
+// rather than blanking the section.
+async function refresh() {
+  const wait = LIQ.cooldownMs - (Date.now() - lastFetch);
+  if (wait > 0) return setStatus(`Just refreshed — try again in ${Math.ceil(wait / 1000)}s`, 'mutt');
+  UPD_BTN.disabled = true;
+  setStatus('Fetching from Liquipedia…');
+  try {
+    const fresh = await fetchLatest();
+    lastFetch = Date.now();
+    LIVE = fresh;
+    setStatus();
+    redrawUpdates();
+  } catch (e) {
+    // The likely causes are all outside this page: offline, Liquipedia down, or
+    // the page markup changed. Say which one, and keep the bundled numbers.
+    lastFetch = Date.now();
+    setStatus(`Could not refresh (${e.message}) — still showing ${LIVE.source === 'liquipedia' ? 'the last live pull' : 'the bundled results'}`, 'errnote');
+  } finally {
+    UPD_BTN.disabled = false;
+  }
+}
+
+// The baseline sim never changes, so a refresh only re-runs the conditioned one.
+function redrawUpdates() {
+  if (!sim) return;
+  UPDATES.replaceChildren(el('p', { class: 'sub' }, 'simulating…'));
+  setTimeout(() => {
+    seed = 12345;
+    UPDATES.replaceChildren(updatesView(sim, runSims(CFG.sims, LIVE.rounds)));
+  }, 20);
+}
+
+// The section answers one question — a round was played, who is better off? —
+// so results and consequences sit side by side rather than in separate blocks.
+function updatesView(before, after) {
+  const box = el('div', {});
+  const nm = i => T[i].name;
+  const alias = n => ALIASES[n]?.[0] ? ` (${ALIASES[n][0]})` : '';
+  const all = LIVE.rounds.flat();
+  const live = all.filter(m => !m.done);
+
+  // Swiss record so far, plus the series a team is in the middle of.
+  const recOf = i => {
+    let w = 0, l = 0, playing = null;
+    for (const m of all) {
+      if (m.i !== i && m.j !== i) continue;
+      const meA = m.i === i, sa = meA ? m.sa : m.sb, sb = meA ? m.sb : m.sa;
+      if (m.done) sa > sb ? w++ : l++; else playing = { sa, sb };
+    }
+    return { w, l, playing };
+  };
+
+  // -- 1. the scores, one block per round played
+  LIVE.rounds.forEach((rd, k) => {
+    const open = rd.filter(m => !m.done).length;
+    box.append(el('div', { class: 'stage', style: k ? '' : 'margin-top:0' },
+      `Round ${k + 1} · Bo3${open ? ` · ${open} still on stage` : ''}`));
+    const list = el('div', { class: 'reslist' });
+    for (const m of rd) {
+      const aWon = m.sa > m.sb;
+      const row = el('div', { class: 'resrow' + (m.done ? '' : ' liveq') },
+        el('span', { class: 'rnm' + (m.done && aWon ? ' wn' : '') }, nm(m.i) + alias(nm(m.i))),
+        el('span', { class: 'rsc' + (m.done ? '' : ' rsc-live') }, `${m.sa}–${m.sb}`),
+        el('span', { class: 'rnm rnm-b' + (m.done && !aWon ? ' wn' : '') }, nm(m.j) + alias(nm(m.j))));
+      const w = aWon ? m.i : m.j;
+      hoverable(row, m.done
+        ? `<strong>${nm(w)}</strong> wins ${Math.max(m.sa, m.sb)}–${Math.min(m.sa, m.sb)}<br>
+           Now ${pct(after.teams[w].main)} to reach the Main Event (was ${pct(before.teams[w].main)})`
+        : m.sa === m.sb
+          ? `Not started — level at ${m.sa}–${m.sb}<br>
+             The simulation plays this series out from here.`
+          : `Still being played — ${nm(w)} leads ${Math.max(m.sa, m.sb)}–${Math.min(m.sa, m.sb)}<br>
+             The simulation finishes this series from the current map score, it does not assume the win.`);
+      list.append(row);
+    }
+    box.append(list);
+  });
+  if (live.length) box.append(el('p', { class: 'note', style: 'margin:8px 0 0' },
+    'Unfinished series are not counted as won — each simulation plays out the remaining maps from the score shown.'));
+
+  // -- 2. the consequence. One number per team: Main Event chance, then and now.
+  box.append(el('div', { class: 'stage' }, 'What it did to the Main Event'));
+  box.append(el('p', { class: 'sub' },
+    'Top 3 in the Swiss go straight through; seeds 4–13 get one Bo3 in the elimination round, five of which survive; 14–16 fly home. This is each team\'s chance of being in the eight that start the Main Event.'));
+
+  const rows = T.map((t, i) => ({
+    t, i, was: before.teams[i].main, now: after.teams[i].main,
+    d: after.teams[i].main - before.teams[i].main,
+    champWas: before.teams[i].champ, champNow: after.teams[i].champ,
+    outWas: before.teams[i].out, outNow: after.teams[i].out,
+    rec: recOf(i),
+  })).sort((a, b) => b.d - a.d);
+  const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 0.005);
+
+  const tb = el('tbody');
+  for (const r of rows) {
+    const { w, l, playing } = r.rec;
+    const score = `${w}–${l}`;
+    const tag = w > l ? 'won' : w < l ? 'lost' : 'leads';
+    const note = playing ? ` · ${playing.sa}–${playing.sb} live` : '';
+    // Diverging bar off a centre line: gain right, loss left. Length is the
+    // size of the swing, so the eye sorts movers without reading the numbers.
+    const dbar = el('div', { class: 'dbar' },
+      el('i', {
+        class: r.d >= 0 ? 'up' : 'dn',
+        style: `width:${(Math.abs(r.d) / maxAbs) * 50}%;${r.d >= 0 ? 'left:50%' : 'right:50%'}`,
+      }));
+    const row = el('tr', { class: 'hoverable' },
+      el('td', {}, el('strong', {}, r.t.name)),
+      el('td', {}, el('span', { class: 'rtag ' + tag }, score),
+        note ? el('span', { class: 'mutt' }, note) : ''),
+      el('td', { class: 'num mut' }, pct(r.was)),
+      el('td', { class: 'num' }, el('strong', {}, pct(r.now))),
+      el('td', {}, dbar),
+      el('td', { class: 'num ' + (r.d >= 0 ? 'dup' : 'ddn') }, (r.d >= 0 ? '+' : '−') + pct(Math.abs(r.d))),
+      el('td', { class: 'num mut' }, pct(r.champNow)),
+      el('td', { class: 'num ' + (r.champNow - r.champWas >= 0 ? 'dup' : 'ddn') },
+        (r.champNow - r.champWas >= 0 ? '+' : '−') + pct(Math.abs(r.champNow - r.champWas))),
+    );
+    hoverable(row, `<strong>${r.t.name}</strong><br>
+      Main Event ${pct(r.was)} → ${pct(r.now)}<br>
+      Out in the Swiss ${pct(r.outWas)} → ${pct(r.outNow)}<br>
+      Title ${pct(r.champWas)} → ${pct(r.champNow)}<br>
+      <em>Swings under about 1pt are Monte-Carlo noise, not news.</em>`);
+    tb.append(row);
+  }
+  box.append(el('div', { class: 'scroll' }, el('table', {}, el('thead', {}, el('tr', {},
+    ...[['Team', 0], ['Swiss', 0], ['Main Event was', 1], ['now', 1], ['', 0], ['Δ', 1],
+      ['Title', 1], ['Δ', 1]].map(([h, n]) => el('th', { class: n ? 'num' : '' }, h)))), tb)));
+
+  // -- 3. the round that is drawn but not yet locked into the simulation
+  if (LIVE.next?.length) {
+    const rn = LIVE.rounds.length + 1;
+    box.append(el('div', { class: 'stage' }, `Round ${rn} pairings · drawn, not yet played`));
+    const grid = el('div', { style: 'display:flex;flex-wrap:wrap;gap:14px' });
+    for (const [ia, ib] of LIVE.next) {
+      const base = pGame(T[ia].rating, T[ib].rating, T[ia].sigma, T[ib].sigma);
+      const p = clamp(base + h2hAdj(T[ia], T[ib], base), 0.02, 0.98);
+      grid.append(matchBox('Round ' + rn,
+        [{ t: T[ia], p: bo3(p) }], [{ t: T[ib], p: 1 - bo3(p) }], { grid: 'width:216px' }));
+    }
+    box.append(grid);
+    box.append(el('p', { class: 'note', style: 'margin:8px 0 0' },
+      `Swiss pairs equal records against each other. Percentages are series odds from the pre-tournament ratings. These pairings are shown only — a round enters the simulation once all ${T.length / 2} of its matches are drawn.`));
+  }
   return box;
 }
 
@@ -1047,11 +1439,15 @@ function bracketSection() {
   const out = el('div');
   const run = () => {
     out.replaceChildren(el('p', { class: 'sub' }, 'simulating…'));
+    UPDATES.replaceChildren(el('p', { class: 'sub' }, 'simulating…'));
     setTimeout(() => {
       seed = 12345; sim = runSims();
       PODIUM.replaceChildren(titleOdds(sim));
       out.replaceChildren(swissView(sim), mainBracket(sim),
         el('details', {}, el('summary', {}, 'Show the full simulation table'), simTable(sim.teams)));
+      // second pass, identical except the played rounds are the played rounds
+      seed = 12345;
+      UPDATES.replaceChildren(updatesView(sim, runSims(CFG.sims, LIVE.rounds)));
     }, 20);
   };
   s.append(el('div', { class: 'row' }, el('button', { onclick: run }, 'Re-run simulation')), out);
